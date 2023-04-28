@@ -3,6 +3,10 @@ name = "sway_mm"
 description = "Sway Multi Monitor Setup"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/AnyTimeTraveler/sway_mm"
+documentation = "https://docs.rs/sway_mm"
+homepage = "https://sway_mm.simonscode.org/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

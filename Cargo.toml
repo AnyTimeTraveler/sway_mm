@@ -1,5 +1,6 @@
 [package]
 name = "sway_mm"
+description = "Sway Multi Monitor Setup"
 version = "0.1.0"
 edition = "2021"
 

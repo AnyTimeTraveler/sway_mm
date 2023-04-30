@@ -30,28 +30,28 @@ impl ScreenGrid {
     }
 
     pub(crate) fn from_screens(screens: Vec<Screen>) -> ScreenGrid {
-        let screens_by_col = Self::split_by(
-            screens.clone(),
-            |screen| screen.x,
-            |screen| screen.y,
-        );
         let screens_by_row = Self::split_by(
             screens.clone(),
             |screen| screen.y,
             |screen| screen.x,
         );
+        let screens_by_col = Self::split_by(
+            screens.clone(),
+            |screen| screen.x,
+            |screen| screen.y,
+        );
 
-        println!("By col:");
-        for c in &screens_by_col {
-            println!("New col!");
+        println!("By row:");
+        for c in &screens_by_row {
+            println!("New row!");
             for a in c {
                 println!("{}: {},{} : {}x{}", a.name, a.x, a.y, a.width, a.height);
             }
         }
 
-        println!("By row:");
-        for c in &screens_by_row {
-            println!("New row!");
+        println!("By col:");
+        for c in &screens_by_col {
+            println!("New col!");
             for a in c {
                 println!("{}: {},{} : {}x{}", a.name, a.x, a.y, a.width, a.height);
             }
@@ -119,6 +119,7 @@ impl ScreenGrid {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn shrink_padding(&mut self) {
         let has_padding_at_top = self.inner.first().unwrap().iter().all(|x| x.is_none());
         if has_padding_at_top {
@@ -193,12 +194,13 @@ impl ScreenGrid {
 
     pub(crate) fn split_by(mut screens: Vec<Screen>, sort_outer: fn(&Screen) -> i32, sort_inner: fn(&Screen) -> i32) -> Vec<Vec<Screen>> {
         screens.sort_by_key(sort_outer);
-        let last_value = 0;
+        let mut last_value = 0;
         let mut columned_outputs = vec![vec![]];
         for output in screens {
             if sort_outer(&output) == last_value {
                 columned_outputs.last_mut().unwrap().push(output);
             } else {
+                last_value = sort_outer(&output);
                 columned_outputs.push(vec![output]);
             }
         }
@@ -370,7 +372,7 @@ mod test {
             println!("{screen:?}");
         }
 
-        let mut grid = ScreenGrid::from_screens(layout);
+        let grid = ScreenGrid::from_screens(layout);
 
         grid.print();
     }
@@ -383,7 +385,7 @@ mod test {
         // eDP-1 : 4480,0 : 2560x1600
         let screens = vec![
             Screen {
-                x: 1920,
+                x: 0,
                 y: 0,
                 width: 2560,
                 height: 1600,
@@ -405,10 +407,11 @@ mod test {
             },
         ];
 
-        let mut grid = ScreenGrid::from_screens(screens);
+        let grid = ScreenGrid::from_screens(screens);
 
-        assert_eq!(1, grid.height());
-        assert_eq!(3, grid.width());
-    }
+        grid.print();
 
+        assert_eq!(2, grid.height());
+        assert_eq!(2, grid.width());
     }
+}

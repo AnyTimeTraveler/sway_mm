@@ -76,6 +76,15 @@ impl ScreenGrid {
     }
 
     pub(crate) fn apply_changes(&self, connection: &mut Connection) {
+        let screen_layout = self.create_layout_for_sway();
+        for screen in screen_layout {
+            let string = format!("output {} pos {} {}", screen.name, screen.x, screen.y);
+            println!("Running: {string}");
+            connection.run_command(string).unwrap();
+        }
+    }
+
+    fn create_layout_for_sway(&self) -> Vec<Screen> {
         let mut screen_layout = vec![];
 
         for (row_idx, row) in self.inner.iter().enumerate() {
@@ -90,15 +99,12 @@ impl ScreenGrid {
                 }
             }
         }
-        for screen in screen_layout {
-            let string = format!("output {} pos {} {}", screen.name, screen.x, screen.y);
-            println!("Running: {string}");
-            connection.run_command(string).unwrap();
-        }
+        screen_layout
     }
 
     pub(crate) fn print(&self) {
-        println!("============================");
+        let divider = "==============".repeat(self.inner[0].len());
+        println!("{divider}");
         for row in &self.inner {
             for col in row {
                 print!("== ");
@@ -109,11 +115,46 @@ impl ScreenGrid {
                 }
                 print!(" ==");
             }
-            println!("\n============================");
+            println!("\n{divider}");
         }
     }
 
-    pub(crate) fn recalculate_padding(&mut self) {
+    pub(crate) fn shrink_padding(&mut self) {
+        let has_padding_at_top = self.inner.first().unwrap().iter().all(|x| x.is_none());
+        if has_padding_at_top {
+            self.inner.remove(0);
+        }
+
+        let has_padding_at_bottom = self.inner.last().unwrap().iter().all(|x| x.is_none());
+        if has_padding_at_bottom {
+            self.inner.pop();
+        }
+
+        let mut has_padding_left = true;
+        let mut has_padding_right = true;
+        for row in &self.inner {
+            if row.first().unwrap().is_some() {
+                has_padding_left = false;
+            }
+            if row.last().unwrap().is_some() {
+                has_padding_right = false;
+            }
+        }
+
+        if has_padding_left {
+            for row in &mut self.inner {
+                row.remove(0);
+            }
+        }
+
+        if has_padding_right {
+            for row in &mut self.inner {
+                row.pop();
+            }
+        }
+    }
+
+    pub(crate) fn grow_padding(&mut self) {
         if needs_space_in_row(&self.inner.first().unwrap()) {
             // add space at the top
             self.inner.insert(0, vec![None; self.inner[0].len()]);
@@ -170,12 +211,12 @@ impl ScreenGrid {
 
     #[cfg(test)]
     pub(crate) fn width(&self) -> usize {
-        self.inner.len()
+        self.inner[0].len()
     }
 
     #[cfg(test)]
     pub(crate) fn height(&self) -> usize {
-        self.inner[0].len()
+        self.inner.len()
     }
 
     fn calculate_coordinates(&self, row_idx: usize, col_idx: usize) -> (i32, i32) {
@@ -197,6 +238,11 @@ impl ScreenGrid {
 
         (y, x)
     }
+
+    pub(crate) fn move_screen(&mut self, src_row_idx: usize, src_col_idx: usize, dst_row_idx: usize, dst_col_idx: usize) {
+        println!("Moving from: ({}, {}) => ({}, {})", src_row_idx, src_col_idx, dst_row_idx, dst_col_idx);
+        self.inner[dst_row_idx][dst_col_idx] = std::mem::replace(&mut self.inner[src_row_idx][src_col_idx], None);
+    }
 }
 
 fn contains(screen_in_row: &Screen, col: &Vec<Screen>) -> bool {
@@ -217,27 +263,152 @@ mod test {
     use crate::screen_grid::ScreenGrid;
     use super::Screen;
 
-    const MAIN_SCREEN: Screen = Screen {
-        x: 0,
-        y: 0,
-        width: 1920,
-        height: 1200,
-        name: String::new(),
-    };
-
     #[test]
     fn works_with_one_screen() {
-        let mut main_screen = Screen::from(MAIN_SCREEN);
-        main_screen.name = "eDP-1".to_owned();
+        let screens = vec![Screen {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1200,
+            name: "eDP-1".to_owned(),
+        }];
 
-        let mut grid = ScreenGrid::from_screens(vec![MAIN_SCREEN]);
+        let mut grid = ScreenGrid::from_screens(screens);
 
         assert_eq!(1, grid.height());
         assert_eq!(1, grid.width());
 
-        grid.recalculate_padding();
+        grid.grow_padding();
 
         assert_eq!(3, grid.height());
         assert_eq!(3, grid.width());
     }
-}
+
+    #[test]
+    fn works_with_two_screens() {
+        let screens = vec![
+            Screen {
+                x: 1920,
+                y: 0,
+                width: 1920,
+                height: 1200,
+                name: "eDP-1".to_owned(),
+            }, Screen {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+                name: "HDMI-A-1".to_owned(),
+            },
+        ];
+
+        let mut grid = ScreenGrid::from_screens(screens);
+        assert_eq!(1, grid.height());
+        assert_eq!(2, grid.width());
+
+        grid.grow_padding();
+
+        assert_eq!(3, grid.height());
+        assert_eq!(4, grid.width());
+    }
+
+    #[test]
+    fn three_differently_sized_screens() {
+        // DP-8  : 0,0    : 1920x1200
+        // DP-7  : 1920,0 : 2560x1440
+        // eDP-1 : 4480,0 : 2560x1600
+        let screens = vec![
+            Screen {
+                x: 4480,
+                y: 0,
+                width: 2560,
+                height: 1600,
+                name: "eDP-1".to_string(),
+            },
+            Screen {
+                x: 1920,
+                y: 0,
+                width: 2560,
+                height: 1440,
+                name: "DP-7".to_string(),
+            },
+            Screen {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1200,
+                name: "DP-8".to_string(),
+            },
+        ];
+
+        let mut grid = ScreenGrid::from_screens(screens);
+
+        assert_eq!(1, grid.height());
+        assert_eq!(3, grid.width());
+
+        grid.grow_padding();
+
+        assert_eq!(3, grid.height());
+        assert_eq!(5, grid.width());
+
+        grid.move_screen(1, 3, 0, 2);
+
+        grid.shrink_padding();
+        grid.print();
+        grid.shrink_padding();
+        grid.print();
+
+        grid.grow_padding();
+        grid.print();
+
+        assert_eq!(4, grid.height());
+        assert_eq!(4, grid.width());
+
+        let layout = grid.create_layout_for_sway();
+
+        for screen in &layout {
+            println!("{screen:?}");
+        }
+
+        let mut grid = ScreenGrid::from_screens(layout);
+
+        grid.print();
+    }
+
+
+    #[test]
+    fn parse_three_screens() {
+        // DP-8  : 0,0    : 1920x1200
+        // DP-7  : 1920,0 : 2560x1440
+        // eDP-1 : 4480,0 : 2560x1600
+        let screens = vec![
+            Screen {
+                x: 1920,
+                y: 0,
+                width: 2560,
+                height: 1600,
+                name: "eDP-1".to_string(),
+            },
+            Screen {
+                x: 1920,
+                y: 0,
+                width: 2560,
+                height: 1440,
+                name: "DP-7".to_string(),
+            },
+            Screen {
+                x: 1920,
+                y: 1600,
+                width: 1920,
+                height: 1200,
+                name: "DP-8".to_string(),
+            },
+        ];
+
+        let mut grid = ScreenGrid::from_screens(screens);
+
+        assert_eq!(1, grid.height());
+        assert_eq!(3, grid.width());
+    }
+
+    }

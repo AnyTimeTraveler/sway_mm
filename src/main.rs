@@ -19,7 +19,7 @@ fn main() -> Fallible<()> {
     println!("Getting new layout from sway:");
     let mut screen_grid = ScreenGrid::from_outputs(connection.get_outputs()?);
     screen_grid.print();
-    screen_grid.recalculate_padding();
+    screen_grid.grow_padding();
     println!("With gaps:");
     screen_grid.print();
 
@@ -52,14 +52,14 @@ struct MyApp {
 
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let id_source = "dragged_screen";
         let mut src_screen = None;
         let mut dst_screen = None;
         let can_accept_what_is_being_dragged = true;
         egui::CentralPanel::default()
             .show(ctx, |ui| {
-                let inner_size = egui::Resize::default()
+                let _inner_size = egui::Resize::default()
                     .auto_sized()
                     .show(ui, |ui| {
                         ui.vertical(|ui| {
@@ -102,9 +102,7 @@ impl eframe::App for MyApp {
                 if let Some((src_row_idx, src_col_idx)) = src_screen {
                     if let Some((dst_row_idx, dst_col_idx)) = dst_screen {
                         if ui.input(|i| i.pointer.any_released()) {
-                            println!("Moving from: {}x{} => {}x{}", src_row_idx, src_col_idx, dst_row_idx, dst_col_idx);
-                            let value = std::mem::replace(&mut self.screen_grid.inner[src_row_idx][src_col_idx], None);
-                            self.screen_grid.inner[dst_row_idx][dst_col_idx] = value;
+                            self.screen_grid.move_screen(src_row_idx, src_col_idx, dst_row_idx, dst_col_idx);
 
                             println!("New screen layout after drop:");
                             self.screen_grid.print();
@@ -112,21 +110,21 @@ impl eframe::App for MyApp {
                             println!("Getting new layout from sway:");
                             self.screen_grid = ScreenGrid::from_outputs(self.connection.get_outputs().unwrap());
                             self.screen_grid.print();
-                            self.screen_grid.recalculate_padding();
+                            self.screen_grid.grow_padding();
                             println!("With gaps:");
                             self.screen_grid.print();
                         }
                     }
                 }
 
-                let outer_size = frame.info().window_info.size;
-                if inner_size != outer_size {
-                    println!("{}x{} => {}x{}", outer_size[0], outer_size[1], inner_size[0], inner_size[1]);
-                    println!("Updating!");
-                    // frame.set_window_size(inner_size);
-                    // frame.set_window_pos(Vec2::new(1000f32, 1000f32).to_pos2());
-                    println!("{}x{} => {}x{}", outer_size[0], outer_size[1], inner_size[0], inner_size[1]);
-                }
+                // let outer_size = frame.info().window_info.size;
+                // if inner_size != outer_size {
+                //     println!("{}x{} => {}x{}", outer_size[0], outer_size[1], inner_size[0], inner_size[1]);
+                //     println!("Updating!");
+                //     // frame.set_window_size(inner_size);
+                //     // frame.set_window_pos(Vec2::new(1000f32, 1000f32).to_pos2());
+                //     println!("{}x{} => {}x{}", outer_size[0], outer_size[1], inner_size[0], inner_size[1]);
+                // }
             });
     }
 }
